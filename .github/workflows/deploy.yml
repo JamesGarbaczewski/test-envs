@@ -122,6 +122,8 @@ jobs:
     name: Deploy test-envs
     needs: [set-lifecycle, validate-ref]
     if: ${{ needs.set-lifecycle.result == 'success' && (needs.validate-ref.result == 'success' || needs.validate-ref.result == 'skipped') }}
+    permissions:
+      contents: write
     uses: ./.github/workflows/_deploy_app.yml
     with:
       appName: test-envs
