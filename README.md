@@ -32,6 +32,16 @@ GitHub Release deploys run on a tag ref, not a branch ref. On `prod`, also allow
 
 The workflow `validate-ref` job still enforces that prod releases must point at a commit on a `release/*` or `hotfix/*` branch, even when the run ref is a tag.
 
+### Stg-before-prod promotion
+
+After a successful deploy, the workflow moves a floating git tag (`dev`, `test`, `stg`, or `prod`) to the deployed commit.
+
+Before prod, `validate-ref` fetches the `stg` tag and checks it points at `${{ github.sha }}`. If not, prod fails.
+
+Expected flow: push `release/1.0.1` → approve stg deploy (`stg` tag moves) → publish GitHub Release → prod validates `stg` tag → approve prod deploy (`prod` tag moves).
+
+You can also inspect what's deployed per environment anytime via **Tags** in GitHub (`dev`, `test`, `stg`, `prod`).
+
 ## Workflows
 
 - **`deploy.yml`** — sets lifecycle from the trigger event, then calls `_deploy_app.yml`
@@ -77,3 +87,8 @@ Pushing to `develop` does not trigger a deploy. Manual `stg`/`prod` runs must us
 2. Try manual dispatch to `stg` from `release/1.0.1` → should proceed to approval.
 3. Push `hotfix/1.0.2` → should deploy to `stg` after approval.
 4. Publish a release whose tag is **not** on a release/hotfix branch → `validate-ref` should fail.
+
+### Phase 4 — stg before prod
+
+1. Publish a GitHub Release **without** deploying the same commit to stg first → prod should fail at validation.
+2. Push `release/1.0.1`, approve stg deploy, then publish the release → prod should proceed to approval.

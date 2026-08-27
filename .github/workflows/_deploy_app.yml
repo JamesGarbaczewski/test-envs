@@ -15,9 +15,13 @@ jobs:
     name: Deploy ${{ inputs.appName }} to ${{ inputs.lifecycle }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.lifecycle }}
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Export env vars
         run: |
@@ -37,3 +41,11 @@ jobs:
           echo "Simulating deploy to ${{ inputs.lifecycle }}..."
           sleep 3
           echo "Deploy to ${{ inputs.lifecycle }} completed successfully."
+
+      - name: Tag deployed commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "${{ inputs.lifecycle }}" -m "Deployed ${{ inputs.lifecycle }} from run ${GITHUB_RUN_ID}"
+          git push origin "refs/tags/${{ inputs.lifecycle }}" --force
+          echo "Tagged ${GITHUB_SHA} as ${{ inputs.lifecycle }}"
