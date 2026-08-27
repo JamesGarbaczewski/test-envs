@@ -16,23 +16,21 @@ Single orchestrator workflow (`deploy.yml`) sets a `lifecycle` variable based on
 | `workflow_dispatch` → `test` | `test` | No |
 | `workflow_dispatch` → `stg` | `stg` | Yes |
 | `workflow_dispatch` → `prod` | `prod` | Yes |
-| `push` to `release/**` | `stg` | Yes |
+| `push` to `release/**` or `hotfix/**` | `stg` | Yes |
 | `release` `published` | `prod` | Yes |
 
 No auto-deploy on `develop`. Dev and test deploys are manual only.
 
+`stg` and `prod` deploys are limited to `release/*` and `hotfix/*` branches via workflow validation and GitHub Environment deployment branch rules.
+
 ## GitHub Environments (repo Settings)
 
-| Environment | Protection rules (step 1) |
-|-------------|---------------------------|
+| Environment | Protection rules |
+|-------------|------------------|
 | `dev` | None |
 | `test` | None |
-| `stg` | Required reviewers |
-| `prod` | Required reviewers |
-
-## Future work (step 2)
-
-Configure **Deployment branches and tags** on `stg` and `prod` to limit which branches/tags can deploy (e.g. `release/**` for stg, tags/releases for prod).
+| `stg` | Required reviewers; deployment branches `release/*`, `hotfix/*` |
+| `prod` | Required reviewers; deployment branches `release/*`, `hotfix/*`; tags allowed for release-triggered deploys |
 
 ## Test scenarios
 

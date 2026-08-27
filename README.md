@@ -10,10 +10,27 @@ Create four environments in **Settings → Environments**:
 |-------------|-------------------|-------|
 | `dev` | None | Manual dispatch only |
 | `test` | None | Manual dispatch only |
-| `stg` | Add yourself (or a team) | Used for release branch deploys |
+| `stg` | Add yourself (or a team) | Used for release/hotfix branch deploys |
 | `prod` | Add yourself (or a team) | Used for GitHub Release deploys |
 
 Add yourself as a required reviewer on `stg` and `prod` so you can approve deployments from the Actions UI.
+
+### Deployment branches and tags (`stg` and `prod`)
+
+On each of `stg` and `prod`, open **Deployment branches and tags** → **Selected branches and tags**:
+
+**Branches**
+- `release/*`
+- `hotfix/*`
+
+**Tags** (required for `prod` only)
+
+GitHub Release deploys run on a tag ref, not a branch ref. On `prod`, also allow tags so release-triggered deploys can reach the environment gate:
+
+- `*` (permissive, fine for a test repo), or
+- a semver pattern like `*.*.*` if you prefer
+
+The workflow `validate-ref` job still enforces that prod releases must point at a commit on a `release/*` or `hotfix/*` branch, even when the run ref is a tag.
 
 ## Workflows
 
@@ -28,10 +45,11 @@ Add yourself as a required reviewer on `stg` and `prod` so you can approve deplo
 | Manual run → `test` | `test` | No |
 | Manual run → `stg` | `stg` | Yes |
 | Manual run → `prod` | `prod` | Yes |
-| Push to `release/**` | `stg` | Yes |
+| Push to `release/**` or `hotfix/**` | `stg` | Yes |
 | Publish GitHub Release | `prod` | Yes |
+| Manual run → `stg` / `prod` from other branches | — | Blocked by workflow + environment rules |
 
-Pushing to `develop` does not trigger a deploy.
+Pushing to `develop` does not trigger a deploy. Manual `stg`/`prod` runs must use the **branch dropdown** to select a `release/*` or `hotfix/*` branch.
 
 ## Test checklist
 
@@ -53,6 +71,9 @@ Pushing to `develop` does not trigger a deploy.
 3. Create a GitHub Release from `release/1.0.1` (tag e.g. `1.0.1`).
 4. Confirm a second Deploy workflow runs for `prod` and waits for approval.
 
-## Future: deployment branch/tag rules
+### Phase 3 — branch restrictions
 
-After the basic approval flow works, configure **Deployment branches and tags** on `stg` and `prod` to restrict which refs can deploy (e.g. `release/**` for stg, release tags for prod).
+1. Try manual dispatch to `stg` from `main` → `validate-ref` should fail.
+2. Try manual dispatch to `stg` from `release/1.0.1` → should proceed to approval.
+3. Push `hotfix/1.0.2` → should deploy to `stg` after approval.
+4. Publish a release whose tag is **not** on a release/hotfix branch → `validate-ref` should fail.

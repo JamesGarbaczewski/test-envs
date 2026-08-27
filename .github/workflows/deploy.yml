@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - 'release/**'
+      - 'hotfix/**'
   release:
     types:
       - published
@@ -50,9 +51,58 @@ jobs:
           echo "setting lifecycle to $LIFECYCLE"
           echo "lifecycle=$LIFECYCLE" >> "$GITHUB_OUTPUT"
 
+  validate-ref:
+    name: Validate deploy ref
+    needs: set-lifecycle
+    if: needs.set-lifecycle.outputs.lifecycle == 'stg' || needs.set-lifecycle.outputs.lifecycle == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate ref is release/* or hotfix/*
+        run: |
+          allowed_branch() {
+            case "$1" in
+              release/*|hotfix/*) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          EVENT="${{ github.event_name }}"
+
+          if [ "$EVENT" = "push" ] || [ "$EVENT" = "workflow_dispatch" ]; then
+            REF="${{ github.ref_name }}"
+            if ! allowed_branch "$REF"; then
+              echo "::error::Deploy to ${{ needs.set-lifecycle.outputs.lifecycle }} only allowed from release/* or hotfix/* branches (current: $REF)"
+              exit 1
+            fi
+            echo "Branch $REF is allowed"
+          elif [ "$EVENT" = "release" ]; then
+            TARGET="${{ github.event.release.target_commitish }}"
+            TAG="${{ github.event.release.tag_name }}"
+
+            if allowed_branch "$TARGET"; then
+              echo "Release targets allowed branch: $TARGET"
+              exit 0
+            fi
+
+            COMMIT=$(git rev-parse "$TAG^{commit}")
+            MATCH=$(git branch -r --contains "$COMMIT" | grep -E 'origin/(release|hotfix)/' || true)
+            if [ -z "$MATCH" ]; then
+              echo "::error::Release tag $TAG must be on a release/* or hotfix/* branch (target_commitish: $TARGET)"
+              exit 1
+            fi
+            echo "Release tag $TAG is on allowed branch(es):"
+            echo "$MATCH"
+          fi
+
   deploy:
     name: Deploy test-envs
-    needs: set-lifecycle
+    needs: [set-lifecycle, validate-ref]
+    if: ${{ needs.set-lifecycle.result == 'success' && (needs.validate-ref.result == 'success' || needs.validate-ref.result == 'skipped') }}
     uses: ./.github/workflows/_deploy_app.yml
     with:
       appName: test-envs
