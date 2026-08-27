@@ -1,0 +1,59 @@
+name: Deploy
+
+run-name: Deploy test-envs to ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.event_name == 'push' && 'stg' || github.event_name == 'release' && 'prod' }} by @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - 'release/**'
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - test
+          - stg
+          - prod
+
+jobs:
+  set-lifecycle:
+    name: Set Lifecycle for Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      lifecycle: ${{ steps.set-variable.outputs.lifecycle }}
+    steps:
+      - name: Set Variable
+        id: set-variable
+        run: |
+          LIFECYCLE=""
+
+          if [ "${{ github.event_name }}" == 'workflow_dispatch' ]
+          then
+            LIFECYCLE="${{ inputs.environment }}"
+          elif [ "${{ github.event_name }}" == 'push' ]
+          then
+            LIFECYCLE="stg"
+          elif [ "${{ github.event_name }}" == 'release' ]
+          then
+            LIFECYCLE="prod"
+          else
+            echo "Unknown lifecycle"
+            exit 1
+          fi
+
+          echo "setting lifecycle to $LIFECYCLE"
+          echo "lifecycle=$LIFECYCLE" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy test-envs
+    needs: set-lifecycle
+    uses: ./.github/workflows/_deploy_app.yml
+    with:
+      appName: test-envs
+      lifecycle: ${{ needs.set-lifecycle.outputs.lifecycle }}
