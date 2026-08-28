@@ -26,8 +26,7 @@ After each deploy, `_deploy_app.yml` moves a floating tag (`dev`, `test`, `stg`,
 | Event | Deploy path |
 |-------|-------------|
 | Push to `develop` | `dev` (automatic) |
-| Manual → `test` / `stg` / `prod` / `dev` | Selected lifecycle |
-| Push to `release/**` or `hotfix/**` | `stg` (branch check) |
+| Manual → `dev` / `test` / `stg` / `prod` | Selected lifecycle |
 
 ## Test checklist
 
@@ -41,12 +40,13 @@ Push or merge to `develop` → **Deploy** runs for `dev`.
 
 ### Stg
 
-```bash
-git checkout -b release/1.0.1
-git push -u origin release/1.0.1
-```
-
-Confirm **Deploy** runs for `stg` and the `stg` tag moves.
+1. Cut and push a release branch:
+   ```bash
+   git checkout -b release/1.0.1
+   git push -u origin release/1.0.1
+   ```
+2. **Actions → Deploy → Run workflow** → select `stg` and branch `release/1.0.1`.
+3. Confirm the `stg` tag moves to that commit.
 
 ### Prod
 

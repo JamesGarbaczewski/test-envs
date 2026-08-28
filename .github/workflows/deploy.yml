@@ -1,13 +1,11 @@
 name: Deploy
 
-run-name: Deploy test-envs to ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.event_name == 'push' && github.ref == 'refs/heads/develop' && 'dev' || github.event_name == 'push' && 'stg' }} by @${{ github.actor }}
+run-name: Deploy test-envs to ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }} by @${{ github.actor }}
 
 on:
   push:
     branches:
       - develop
-      - 'release/**'
-      - 'hotfix/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -23,7 +21,6 @@ on:
 jobs:
   set-lifecycle:
     name: Set Lifecycle for Deployment
-    if: github.event_name != 'push' || github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
     outputs:
       lifecycle: ${{ steps.set-variable.outputs.lifecycle }}
@@ -33,43 +30,34 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             LIFECYCLE="${{ inputs.environment }}"
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            LIFECYCLE="stg"
           else
-            echo "Unknown lifecycle"
-            exit 1
+            LIFECYCLE="dev"
           fi
 
           echo "setting lifecycle to $LIFECYCLE"
           echo "lifecycle=$LIFECYCLE" >> "$GITHUB_OUTPUT"
 
-  validate-ref:
-    name: Validate deploy ref
-    needs: set-lifecycle
-    if: needs.set-lifecycle.outputs.lifecycle == 'stg' || needs.set-lifecycle.outputs.lifecycle == 'prod'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
       - name: Validate ref is release/* or hotfix/*
+        if: steps.set-variable.outputs.lifecycle == 'stg' || steps.set-variable.outputs.lifecycle == 'prod'
         run: |
           case "${{ github.ref_name }}" in
             release/*|hotfix/*)
-              echo "Branch ${{ github.ref_name }} is allowed for ${{ needs.set-lifecycle.outputs.lifecycle }} deploy"
+              echo "Branch ${{ github.ref_name }} is allowed for ${{ steps.set-variable.outputs.lifecycle }} deploy"
               ;;
             *)
-              echo "::error::${{ needs.set-lifecycle.outputs.lifecycle }} deploys only allowed from release/* or hotfix/* branches (current: ${{ github.ref_name }})"
+              echo "::error::${{ steps.set-variable.outputs.lifecycle }} deploys only allowed from release/* or hotfix/* branches (current: ${{ github.ref_name }})"
               exit 1
               ;;
           esac
 
       - name: Checkout code
+        if: steps.set-variable.outputs.lifecycle == 'stg' || steps.set-variable.outputs.lifecycle == 'prod'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Validate commit was deployed to stg first
-        if: needs.set-lifecycle.outputs.lifecycle == 'prod'
+        if: steps.set-variable.outputs.lifecycle == 'prod'
         run: |
           git fetch origin refs/tags/stg:refs/tags/stg || true
 
@@ -86,23 +74,9 @@ jobs:
 
           echo "stg tag confirms ${{ github.sha }} was deployed to staging"
 
-  deploy-dev:
-    name: Deploy to dev
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    permissions:
-      contents: write
-    uses: ./.github/workflows/_deploy_app.yml
-    with:
-      appName: test-envs
-      lifecycle: dev
-
   deploy:
     name: Deploy test-envs
-    needs: [set-lifecycle, validate-ref]
-    if: |
-      always() &&
-      needs.set-lifecycle.result == 'success' &&
-      (needs.validate-ref.result == 'success' || needs.validate-ref.result == 'skipped')
+    needs: set-lifecycle
     permissions:
       contents: write
     uses: ./.github/workflows/_deploy_app.yml

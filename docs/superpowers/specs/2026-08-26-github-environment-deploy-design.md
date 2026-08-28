@@ -19,7 +19,6 @@ Validate deploy promotion rules for stg/prod without GitHub Environment required
 | Trigger | Path |
 |---------|------|
 | Push `develop` | dev (automatic) |
-| Push `release/**`, `hotfix/**` | stg (with branch check) |
 | Manual | selected lifecycle; stg/prod include promotion checks |
 
 ## Tagging
