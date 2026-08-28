@@ -14,7 +14,6 @@ jobs:
   deploy:
     name: Deploy ${{ inputs.appName }} to ${{ inputs.lifecycle }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.lifecycle }}
     permissions:
       contents: write
     steps:
@@ -23,11 +22,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Export env vars
-        run: |
-          echo "READABLE_TAG=${GITHUB_RUN_NUMBER}-${GITHUB_REF#refs/heads/}" >> "$GITHUB_ENV"
-          echo "WORKFLOW_RUN_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
-
       - name: Deploy (stub)
         run: |
           echo "App Name: ${{ inputs.appName }}"
@@ -35,8 +29,6 @@ jobs:
           echo "Branch/Ref: ${GITHUB_REF}"
           echo "Sha: ${GITHUB_SHA}"
           echo "Actor: ${GITHUB_ACTOR}"
-          echo "Readable Tag: ${READABLE_TAG}"
-          echo "Workflow Run: ${WORKFLOW_RUN_URL}"
           echo ""
           echo "Simulating deploy to ${{ inputs.lifecycle }}..."
           sleep 3

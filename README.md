@@ -1,72 +1,59 @@
 # test-envs
 
-Sandbox repo for testing GitHub Environment approval behavior in a deploy pipeline modeled after `border-operations-service`.
+Sandbox repo for testing deploy promotion rules modeled after `border-operations-service`.
 
-## Setup
+## Structure
 
-Create four environments in **Settings → Environments**:
+Two workflow files:
 
-| Environment | Required reviewers | Deployment branches (optional) |
-|-------------|-------------------|-------------------------------|
-| `dev` | None | — |
-| `test` | Yes | — |
-| `stg` | Yes | `release/*`, `hotfix/*` |
-| `prod` | Yes | `release/*`, `hotfix/*` |
+| File | Role |
+|------|------|
+| **`deploy.yml`** | Orchestrator — set lifecycle, validate, call deploy |
+| **`_deploy_app.yml`** | Shared deploy stub + git tag by lifecycle |
 
-Add yourself as a required reviewer on `test`, `stg`, and `prod`.
+## Promotion rules (in `deploy.yml`)
 
-## Workflows
+| Lifecycle | Branch check (`release/*`, `hotfix/*`) | Stg tag check |
+|-----------|----------------------------------------|---------------|
+| `dev`, `test` | — | — |
+| `stg` | Yes | — |
+| `prod` | Yes | Yes (`stg` tag must match commit) |
 
-Two pipelines, each with sequential environment gates in a **single run**:
+After each deploy, `_deploy_app.yml` moves a floating tag (`dev`, `test`, `stg`, `prod`) to the deployed commit.
 
-| Workflow | Trigger | Flow |
-|----------|---------|------|
-| **Deploy Dev Test** (`deploy-dev-test.yml`) | Push to `develop` (merge) | `dev` (auto) → **approve** `test` |
-| **Deploy Stg Prod** (`deploy-stg-prod.yml`) | Push to `release/**` or `hotfix/**` | **approve** `stg` → **approve** `prod` |
+## Triggers
 
-Both call **`_deploy_app.yml`**, a reusable stub deploy. The `environment:` key on each job drives the approval gate.
-
-After each successful deploy, a floating git tag (`dev`, `test`, `stg`, `prod`) moves to that commit so you can see what's deployed under **Tags**.
-
-## Flow diagrams
-
-**Merge to develop**
-
-```
-push develop  →  deploy dev (no gate)  →  wait for test approval  →  deploy test
-```
-
-**Cut release branch**
-
-```
-push release/1.0.1  →  wait for stg approval  →  deploy stg  →  wait for prod approval  →  deploy prod
-```
-
-## Manual runs
-
-Both workflows support `workflow_dispatch` for testing:
-
-- **Deploy Dev Test** — run from `develop` (or any branch for experimentation)
-- **Deploy Stg Prod** — run from a `release/*` or `hotfix/*` branch
+| Event | Deploy path |
+|-------|-------------|
+| Push to `develop` | `dev` (automatic) |
+| Manual → `test` / `stg` / `prod` / `dev` | Selected lifecycle |
+| Push to `release/**` or `hotfix/**` | `stg` (branch check) |
 
 ## Test checklist
 
-### Dev → Test pipeline
+### Dev (automatic)
 
-1. Push or merge to `develop`
-2. Confirm `deploy-dev` completes without approval
-3. Confirm run pauses on `deploy-test` → approve → completes
+Push or merge to `develop` → **Deploy** runs for `dev`.
 
-### Stg → Prod pipeline
+### Test
 
-1. Create and push a release branch:
-   ```bash
-   git checkout -b release/1.0.1
-   git push -u origin release/1.0.1
-   ```
-2. Confirm run pauses on `deploy-stg` → approve → stg deploy completes
-3. Confirm run pauses on `deploy-prod` → approve → prod deploy completes
+**Actions → Deploy → Run workflow** → select `test` and branch (typically `develop`).
 
-### Environment branch rules (optional)
+### Stg
 
-On `stg` and `prod`, configure **Deployment branches and tags** to `release/*` and `hotfix/*` as a second layer of protection in GitHub settings.
+```bash
+git checkout -b release/1.0.1
+git push -u origin release/1.0.1
+```
+
+Confirm **Deploy** runs for `stg` and the `stg` tag moves.
+
+### Prod
+
+1. After stg deploy above, **Actions → Deploy → Run workflow** → `prod` from `release/1.0.1`.
+2. Confirm prod completes and `prod` tag moves.
+
+### Failures
+
+1. Manual **Deploy** → `prod` from `main` → fails branch check.
+2. Manual **Deploy** → `prod` before stg deploy for that commit → fails stg tag check.

@@ -1,40 +1,27 @@
-# GitHub Environment Deploy Pipeline — Design
+# GitHub Deploy Promotion Pipeline — Design
 
 ## Goal
 
-Learn and validate GitHub Environment approval behavior using a pipeline that mirrors `border-operations-service` structure, without real deployment infrastructure.
+Validate deploy promotion rules for stg/prod without GitHub Environment required reviewers.
 
-## Architecture
+## Structure
 
-Single orchestrator workflow (`deploy.yml`) sets a `lifecycle` variable based on the triggering event, then calls a reusable stub deploy workflow (`_deploy_app.yml`). GitHub Environment protection rules on `stg` and `prod` cause jobs to pause for approval.
+- **`deploy.yml`** — orchestrator (lifecycle, validation, deploy calls)
+- **`_deploy_app.yml`** — reusable deploy stub + lifecycle tag
 
-## Triggers and lifecycle mapping
+## Core rules
 
-| Trigger | Lifecycle | Approval required |
-|---------|-----------|-------------------|
-| `workflow_dispatch` → `dev` | `dev` | No |
-| `workflow_dispatch` → `test` | `test` | No |
-| `workflow_dispatch` → `stg` | `stg` | Yes |
-| `workflow_dispatch` → `prod` | `prod` | Yes |
-| `push` to `release/**` or `hotfix/**` | `stg` | Yes |
-| `release` `published` | `prod` | Yes |
+1. **Branch restriction** — stg and prod deploys only from `release/*` or `hotfix/*` branches.
+2. **Stg-before-prod** — prod deploy requires the `stg` git tag to point at `${{ github.sha }}`.
 
-No auto-deploy on `develop`. Dev and test deploys are manual only.
+## Triggers
 
-`stg` and `prod` deploys are limited to `release/*` and `hotfix/*` branches via workflow validation and GitHub Environment deployment branch rules.
+| Trigger | Path |
+|---------|------|
+| Push `develop` | dev (automatic) |
+| Push `release/**`, `hotfix/**` | stg (with branch check) |
+| Manual | selected lifecycle; stg/prod include promotion checks |
 
-## GitHub Environments (repo Settings)
+## Tagging
 
-| Environment | Protection rules |
-|-------------|------------------|
-| `dev` | None |
-| `test` | None |
-| `stg` | Required reviewers; deployment branches `release/*`, `hotfix/*` |
-| `prod` | Required reviewers; deployment branches `release/*`, `hotfix/*`; tags allowed for release-triggered deploys |
-
-## Test scenarios
-
-1. Manual dispatch to `dev` or `test` — runs immediately, no approval gate.
-2. Manual dispatch to `stg` or `prod` — waits for approval.
-3. Push to `release/1.0.1` — auto deploys to `stg`, waits for approval.
-4. Publish GitHub Release — auto deploys to `prod`, waits for approval.
+After each deploy, `_deploy_app.yml` moves a floating tag matching the lifecycle name.
